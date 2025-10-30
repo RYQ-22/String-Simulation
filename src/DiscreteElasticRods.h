@@ -45,6 +45,11 @@ public:
     std::vector<Eigen::Vector3d> vis_bending_force;
     std::vector<Eigen::Vector3d> vis_twisting_force;
 
+    // collision
+    double weight = 0.;
+    Eigen::SparseMatrix<double> md;
+    Eigen::SparseMatrix<Eigen::Vector3d> n;
+
     DiscreteElasticRods();
 
     void initSimulation(int nv_, Eigen::VectorXd x_, Eigen::VectorXd theta_, std::vector<bool> is_fixed_,
@@ -107,6 +112,10 @@ public:
     void buildForceVisualization(Eigen::VectorXd& stretching_force,
             Eigen::VectorXd& bending_force,
             Eigen::VectorXd& twisting_force);
+
+    void updateMinimumDistance();
+
+    double applyCollision();
 
 protected:
 

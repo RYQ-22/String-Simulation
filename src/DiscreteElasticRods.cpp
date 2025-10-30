@@ -451,3 +451,98 @@ void DiscreteElasticRods::buildForceVisualization(Eigen::VectorXd& stretching_fo
         vis_twisting_force[i] = twisting_force.segment<3>(3*i);
     }
 }
+
+void DiscreteElasticRods::updateMinimumDistance()
+{
+    const double d = 2.*params.segment_radius;
+    double a1, a2, a3, a4, a5;
+    double delta;
+    double ti, tj;
+    double mdij;
+    Eigen::Vector3d nij, nij1, nij2;
+    Eigen::Vector3d ri1, ri2, rj1, rj2, rk1, rk2;
+    Eigen::Vector3d ei, ej, w;
+    Eigen::Vector3d rm1, rm2;
+    Eigen::Vector3d h;
+    md.setZero();
+    n.setZero();
+    std::vector<Eigen::Triplet<double>> md_triplets;
+    std::vector<Eigen::Triplet<Eigen::Vector3d>> n_triplets;
+    for (int i = 0; i<nv-1; i++) {
+        for (int j = i+2; j<nv-1; j++) {
+            ri1 = x.segment<3>(3*i);
+            ri2 = x.segment<3>(3*(i+1));
+            rj1 = x.segment<3>(3*j);
+            rj2 = x.segment<3>(3*(j+1));
+            ei = e.segment<3>(3*i);
+            ej = e.segment<3>(3*j);
+            w = rj1-ri1;
+            a1 = length(i)*length(i);
+            a2 = ei.dot(ej);
+            a3 = w.dot(ei);
+            a4 = length(j)*length(j);
+            a5 = -w.dot(ej);
+            delta = a1*a4-a2*a2+1e-6;
+            ti = (a3*a4+a2*a5)/delta;
+            tj = (a1*a5+a2*a3)/delta;
+            h = w+tj*ej-ti*ei;
+            rk1 = rj1-h;
+            rk2 = rj2-h;
+
+            rm1 = ri1+(rk1-ri1).dot(ei)/a1*ei;
+            rm2 = ri1+(rk2-ri1).dot(ei)/a1*ei;
+            nij1 = rk1-rm1;
+            nij2 = rk2-rm2;
+            if ((ei.cross(rk1-ri1)).dot(ei.cross(rk2-ri1))<=0) {
+                nij.setZero();
+            }
+            else {
+                if ((ri1-rm1).dot(ri2-rm1)>=0.) {
+                    nij1 = rk1-ri1;
+                    if (nij1.norm()>(rk1-ri2).norm()) {
+                        nij1 = rk1-ri2;
+                    }
+                }
+                if ((ri1-rm2).dot(ri2-rm2)>=0.) {
+                    nij2 = rk2-ri1;
+                    if (nij2.norm()>(rk2-ri2).norm()) {
+                        nij2 = rk2-ri2;
+                    }
+                }
+                nij = nij1;
+                if (nij.norm()>nij2.norm()) {
+                    nij = nij2;
+                }
+            }
+            nij += h;
+            mdij = nij.norm();
+            if (mdij<d) {
+                md_triplets.push_back(Eigen::Triplet<double>(i,j,mdij));
+                n_triplets.push_back(Eigen::Triplet<Eigen::Vector3d>(i,j,nij));
+            }
+        }
+    }
+    md.setFromTriplets(md_triplets.begin(),md_triplets.end());
+    n.setFromTriplets(n_triplets.begin(),n_triplets.end());
+}
+
+double DiscreteElasticRods::applyCollision()
+{
+    const double d = 2.*params.segment_radius;
+    double mdij;
+    Eigen::Vector3d nij;
+    for (int i = 0; i<nv-1; i++) {
+        for (int j = i+2; j<nv-1; j++) {
+            mdij = md.coeff(i,j);
+            if (mdij==0.) continue;
+            nij = n.coeff(i,j);            
+            // m = 1 for all points
+            weight = 0.5;
+            x.segment<3>(3*i) += nij*weight*(mdij-d)*0.5;
+            x.segment<3>(3*(i+1)) += nij*weight*(mdij-d)*(1.-0.5);
+            x.segment<3>(3*j) += nij*(1.-weight)*(d-mdij)*0.5;
+            x.segment<3>(3*(j+1)) += nij*(1.-weight)*(d-mdij)*(1.-0.5);
+        }
+    }
+    return 0;
+}
