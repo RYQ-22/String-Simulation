@@ -5,11 +5,14 @@
 DiscreteElasticRods::DiscreteElasticRods() { }
 
 void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::VectorXd theta_,
-        std::vector<bool> is_fixed_, SimParameters params_)
+        std::vector<bool> is_fixed_, std::vector<bool> is_connected_, SimParameters params_)
 {
     nv = nv_;
     x = std::move(x_);
     is_fixed = std::move(is_fixed_);
+    is_connected = std::move(is_connected_);
+    x_iter.resize(nv*3);
+    x_delta.resize(nv*3);
     v.resize(nv*3);
     v.setZero();
 
@@ -22,23 +25,33 @@ void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::Vec
     updateEdge();
     updateLength();
 
+    int ne_vis = 0;
+
     for (int i = 0; i<nv-1; i++) {
         length_rest(i) = length(i);
+        if (is_connected[i]) ne_vis++; 
     }
     Eigen::MatrixX3d d3 = unitTangents(x);
 
     // set up reference frame
     theta = std::move(theta_);
-//    theta.resize(nv-1);
-//    theta.setZero();
+    // theta.resize(nv-1);
+    // theta.setZero();
     d1_ref.resize(nv-1, 3);
     d2_ref.resize(nv-1, 3);
+    d1_vis.resize(ne_vis, 3);
+    d2_vis.resize(ne_vis, 3);
 
-    for (int i = 0; i<nv-1; i++) {
+    for (int i = 0, i_vis = 0; i<nv-1; i++) {
         Eigen::Vector3d d3_i = d3.row(i).transpose();
         d1_ref.row(i) = Eigen::RowVector3d(-d3_i(1), d3_i(0), 0);
         Eigen::Vector3d d1_i = d1_ref.row(i).transpose();
         d2_ref.row(i) = (d1_i.cross(d3_i)).transpose();
+        if (is_connected[i]) {
+            d1_vis.row(i_vis) = d1_ref.row(i);
+            d2_vis.row(i_vis) = d2_ref.row(i);
+            i_vis++;
+        }
     }
     d1.resize(nv-1, 3);
     d1 = d1_ref;
@@ -91,12 +104,17 @@ void DiscreteElasticRods::updateCenterlinePosition(void)
 
 void DiscreteElasticRods::updateMaterialFrame(Eigen::MatrixX3d prev_d3, Eigen::MatrixX3d d3)
 {
-    for (int i = 0; i<nv-1; i++) {
+    for (int i = 0, i_vis = 0; i<nv-1; i++) {
         double frame_theta = theta(i);
         d1_ref.row(i) = parallelTransport(d1_ref.row(i), prev_d3.row(i).transpose(), d3.row(i).transpose());
         d2_ref.row(i) = parallelTransport(d2_ref.row(i), prev_d3.row(i).transpose(), d3.row(i).transpose());
         d1.row(i) = std::cos(frame_theta)*d1_ref.row(i)+std::sin(frame_theta)*d2_ref.row(i);
         d2.row(i) = -std::sin(frame_theta)*d1_ref.row(i)+std::cos(frame_theta)*d2_ref.row(i);
+        if (is_connected[i]) {
+            d1_vis.row(i_vis) = d1.row(i);
+            d2_vis.row(i_vis) = d2.row(i);
+            i_vis++;
+        }
     }
 }
 
@@ -144,6 +162,11 @@ void DiscreteElasticRods::computeGradientAndHessian(Eigen::VectorXd& gradient,
     if (params.gravity_enabled) {
         if (verbose) std::cout << "    - Adding Gravity" << std::endl;
         applyGravity(gradient);
+    }
+
+    if (params.collision_enabled) {
+        if (verbose) std::cout << "    - Applying Collision" << std::endl;
+        applyCollision(gradient);
     }
 
     hessian.setFromTriplets(hessian_triplets.begin(), hessian_triplets.end());
@@ -263,6 +286,7 @@ double DiscreteElasticRods::applyStretchingForce(Eigen::VectorXd& gradient,
     const double k = params.stretching_modulus;
     double E_s = 0.0;
     for (int i = 0; i<nv-1; i++) {
+        if (!is_connected[i]) continue;
         // ======== compute stretching energy E_s ========
         const double a_i = r;
         const double b_i = r;
@@ -302,6 +326,7 @@ double DiscreteElasticRods::applyBendingForce(Eigen::VectorXd& gradient,
     getMaterialCurvature(kappa);
 
     for (int i = 1; i<nv-1; i++) {
+        if (!is_connected[i]) continue;
         const double a_i = r;
         const double b_i = r;
         // TODO: fix A_i = pi * a_j * b_j
@@ -383,6 +408,7 @@ double DiscreteElasticRods::applyTwistingForce(Eigen::VectorXd& gradient,
     Eigen::MatrixX2d kappa;
     getMaterialCurvature(kappa);
     for (int i = 1; i<nv-1; i++) {
+        if (!is_connected[i]) continue;
         const double a_i = r;
         const double b_i = r;
         //TODO: fix A_i = pi * a_j * b_j
@@ -452,97 +478,144 @@ void DiscreteElasticRods::buildForceVisualization(Eigen::VectorXd& stretching_fo
     }
 }
 
-void DiscreteElasticRods::updateMinimumDistance()
+std::tuple<double, Eigen::Vector3d> DiscreteElasticRods::getMinimumDistance(const Eigen::Vector3d& ri1,
+        const Eigen::Vector3d& ri2,
+        const Eigen::Vector3d& rj1,
+        const Eigen::Vector3d& rj2)
 {
-    const double d = 2.*params.segment_radius;
     double a1, a2, a3, a4, a5;
     double delta;
     double ti, tj;
     double mdij;
     Eigen::Vector3d nij, nij1, nij2;
-    Eigen::Vector3d ri1, ri2, rj1, rj2, rk1, rk2;
+    Eigen::Vector3d rk1, rk2;
     Eigen::Vector3d ei, ej, w;
     Eigen::Vector3d rm1, rm2;
     Eigen::Vector3d h;
-    md.setZero();
-    n.setZero();
-    std::vector<Eigen::Triplet<double>> md_triplets;
-    std::vector<Eigen::Triplet<Eigen::Vector3d>> n_triplets;
-    for (int i = 0; i<nv-1; i++) {
-        for (int j = i+2; j<nv-1; j++) {
-            ri1 = x.segment<3>(3*i);
-            ri2 = x.segment<3>(3*(i+1));
-            rj1 = x.segment<3>(3*j);
-            rj2 = x.segment<3>(3*(j+1));
-            ei = e.segment<3>(3*i);
-            ej = e.segment<3>(3*j);
-            w = rj1-ri1;
-            a1 = length(i)*length(i);
-            a2 = ei.dot(ej);
-            a3 = w.dot(ei);
-            a4 = length(j)*length(j);
-            a5 = -w.dot(ej);
-            delta = a1*a4-a2*a2+1e-6;
-            ti = (a3*a4+a2*a5)/delta;
-            tj = (a1*a5+a2*a3)/delta;
-            h = w+tj*ej-ti*ei;
-            rk1 = rj1-h;
-            rk2 = rj2-h;
 
-            rm1 = ri1+(rk1-ri1).dot(ei)/a1*ei;
-            rm2 = ri1+(rk2-ri1).dot(ei)/a1*ei;
-            nij1 = rk1-rm1;
-            nij2 = rk2-rm2;
-            if ((ei.cross(rk1-ri1)).dot(ei.cross(rk2-ri1))<=0) {
-                nij.setZero();
-            }
-            else {
-                if ((ri1-rm1).dot(ri2-rm1)>=0.) {
-                    nij1 = rk1-ri1;
-                    if (nij1.norm()>(rk1-ri2).norm()) {
-                        nij1 = rk1-ri2;
-                    }
-                }
-                if ((ri1-rm2).dot(ri2-rm2)>=0.) {
-                    nij2 = rk2-ri1;
-                    if (nij2.norm()>(rk2-ri2).norm()) {
-                        nij2 = rk2-ri2;
-                    }
-                }
-                nij = nij1;
-                if (nij.norm()>nij2.norm()) {
-                    nij = nij2;
-                }
-            }
-            nij += h;
-            mdij = nij.norm();
-            if (mdij<d) {
-                md_triplets.push_back(Eigen::Triplet<double>(i,j,mdij));
-                n_triplets.push_back(Eigen::Triplet<Eigen::Vector3d>(i,j,nij));
+    ei = ri2-ri1;
+    ej = rj2-rj1;
+    w = rj1-ri1;
+    a1 = ei.norm()*ei.norm();
+    a2 = ei.dot(ej);
+    a3 = w.dot(ei);
+    a4 = ej.norm()*ej.norm();
+    a5 = -w.dot(ej);
+    delta = a1*a4-a2*a2;
+    if (delta != 0.) {
+        ti = (a3*a4+a2*a5)/delta;
+        tj = (a1*a5+a2*a3)/delta;
+        h = w+tj*ej-ti*ei;
+    }
+    else {
+        h.setZero();
+    }
+    rk1 = rj1-h;
+    rk2 = rj2-h;
+
+    rm1 = ri1+(rk1-ri1).dot(ei)/a1*ei;
+    rm2 = ri1+(rk2-ri1).dot(ei)/a1*ei;
+    nij1 = rk1-rm1;
+    nij2 = rk2-rm2;
+    if ((ei.cross(rk1-ri1)).dot(ei.cross(rk2-ri1))<=0) {
+        nij.setZero();
+    }
+    else {
+        if ((ri1-rm1).dot(ri2-rm1)>=0.) {
+            nij1 = rk1-ri1;
+            if (nij1.norm()>(rk1-ri2).norm()) {
+                nij1 = rk1-ri2;
             }
         }
+        if ((ri1-rm2).dot(ri2-rm2)>=0.) {
+            nij2 = rk2-ri1;
+            if (nij2.norm()>(rk2-ri2).norm()) {
+                nij2 = rk2-ri2;
+            }
+        }
+        nij = nij1;
+        if (nij.norm()>nij2.norm()) {
+            nij = nij2;
+        }
     }
+    nij += h;
+    mdij = nij.norm();
+
+    return std::make_tuple(mdij,nij);
+}
+
+void DiscreteElasticRods::computeDisplacements()
+{
+    const double d = 2.*params.segment_radius;
+    Eigen::Vector3d ri1, ri2, rj1, rj2;
+    double mdij;
+    Eigen::Vector3d nij;
+    std::vector<Eigen::Triplet<double>> md_triplets;
+    std::vector<Eigen::Triplet<double>> n_triplets;
+    md.resize(nv-1,nv-1);
+    n.resize(nv-1,3*(nv-1));
+    for (int i = 0; i<nv-1; i++) {
+        if (!is_connected[i]) continue;
+        for (int j = i+2; j<nv-1; j++) {
+            if (!is_connected[j]) continue;
+            ri1 = x_iter.segment<3>(3*i);
+            ri2 = x_iter.segment<3>(3*(i+1));
+            rj1 = x_iter.segment<3>(3*j);
+            rj2 = x_iter.segment<3>(3*(j+1));
+            std::tie(mdij, nij) = getMinimumDistance(ri1, ri2, rj1, rj2);
+            if (mdij<d) {
+                md_triplets.push_back(Eigen::Triplet<double>(i,j,mdij));
+                n_triplets.push_back(Eigen::Triplet<double>(i,3*j,nij(0)));
+                n_triplets.push_back(Eigen::Triplet<double>(i,3*j+1,nij(1)));
+                n_triplets.push_back(Eigen::Triplet<double>(i,3*j+2,nij(2)));
+            }
+        }
+    } 
     md.setFromTriplets(md_triplets.begin(),md_triplets.end());
     n.setFromTriplets(n_triplets.begin(),n_triplets.end());
 }
 
-double DiscreteElasticRods::applyCollision()
+double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
 {
     const double d = 2.*params.segment_radius;
+    const double h = params.time_step;
+    const int iters = params.collision_max_iters;
     double mdij;
     Eigen::Vector3d nij;
-    for (int i = 0; i<nv-1; i++) {
-        for (int j = i+2; j<nv-1; j++) {
-            mdij = md.coeff(i,j);
-            if (mdij==0.) continue;
-            nij = n.coeff(i,j);            
-            // m = 1 for all points
-            weight = 0.5;
-            x.segment<3>(3*i) += nij*weight*(mdij-d)*0.5;
-            x.segment<3>(3*(i+1)) += nij*weight*(mdij-d)*(1.-0.5);
-            x.segment<3>(3*j) += nij*(1.-weight)*(d-mdij)*0.5;
-            x.segment<3>(3*(j+1)) += nij*(1.-weight)*(d-mdij)*(1.-0.5);
+    x_iter = x;
+    x_delta.setZero();
+
+    // solve x_delta iteratively
+    for (int iter = 0; iter<iters; iter++) {
+        computeDisplacements();
+        for (int k = 0; k < md.outerSize(); k++) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(md,k); it; ++it) {
+                const int i = it.row();
+                const int j = it.col();
+                mdij = md.coeff(i,j);
+                nij(0) = n.coeff(i,3*j);
+                nij(1) = n.coeff(i,3*j+1);
+                nij(2) = n.coeff(i,3*j+2);
+                // m = 1 for all points
+                weight = 0.5;
+                // TODO: debug
+                x_delta.segment<3>(3*i) += nij*weight*(mdij-d)*0.5;
+                x_delta.segment<3>(3*(i+1)) += nij*weight*(mdij-d)*(1.-0.5);
+                x_delta.segment<3>(3*j) += nij*(1.-weight)*(d-mdij)*0.5;
+                x_delta.segment<3>(3*(j+1)) += nij*(1.-weight)*(d-mdij)*(1.-0.5);
+                x_iter.segment<3>(3*i) = x.segment<3>(3*i) + x_delta.segment<3>(3*i);
+                x_iter.segment<3>(3*(i+1)) = x.segment<3>(3*i) + x_delta.segment<3>(3*(i+1));
+                x_iter.segment<3>(3*j) = x.segment<3>(3*i) + x_delta.segment<3>(3*j);
+                x_iter.segment<3>(3*(j+1)) = x.segment<3>(3*i) + x_delta.segment<3>(3*(j+1));
+            }
         }
     }
+
+    for (int i = 0; i<nv; i++) {
+        // m = 1 for all points
+        const double m = 1.;
+        gradient.segment<3>(3*i) += x_delta.segment<3>(3*i)*m/(h*h);
+    }
+
     return 0;
 }

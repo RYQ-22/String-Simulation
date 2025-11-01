@@ -20,9 +20,12 @@ struct SimParameters {
   bool bending_energy_enabled;
   bool twisting_energy_enabled;
 
+  int collision_max_iters;
+  bool collision_enabled;
+
   SimParameters()
   {
-      time_step = 0.005;
+      time_step = 0.001;
 
       newton_max_iters = 20;
       newton_tolerance = 1e-8;
@@ -33,11 +36,14 @@ struct SimParameters {
       stretching_modulus = 1e4;
       bending_modulus = 1e7;
       twisting_modulus = 1e5;
-      segment_radius = 0.1;
+      segment_radius = 0.3;
 
       stretching_energy_enabled = true;
       bending_energy_enabled = true;
       twisting_energy_enabled = true;
+
+      collision_max_iters = 1;
+      collision_enabled = false;
   }
 };
 

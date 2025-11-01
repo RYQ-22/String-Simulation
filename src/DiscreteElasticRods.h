@@ -14,7 +14,10 @@
 class DiscreteElasticRods {
 public:
     Eigen::VectorXd x;
+    Eigen::VectorXd x_iter;
+    Eigen::VectorXd x_delta;
     std::vector<bool> is_fixed;
+    std::vector<bool> is_connected;
     Eigen::VectorXd v;
     Eigen::VectorXd e;
     Eigen::VectorXd length_rest;
@@ -30,6 +33,8 @@ public:
     Eigen::MatrixX3d d2_ref;
     Eigen::MatrixX3d d1;
     Eigen::MatrixX3d d2;
+    Eigen::MatrixX3d d1_vis;
+    Eigen::MatrixX3d d2_vis;
     Eigen::VectorXd theta;
 
     // simulation parameters
@@ -48,12 +53,12 @@ public:
     // collision
     double weight = 0.;
     Eigen::SparseMatrix<double> md;
-    Eigen::SparseMatrix<Eigen::Vector3d> n;
+    Eigen::SparseMatrix<double> n;
 
     DiscreteElasticRods();
 
     void initSimulation(int nv_, Eigen::VectorXd x_, Eigen::VectorXd theta_, std::vector<bool> is_fixed_,
-            SimParameters params_);
+            std::vector<bool> is_connected_, SimParameters params_);
 
     void simulateOneStep();
 
@@ -113,9 +118,14 @@ public:
             Eigen::VectorXd& bending_force,
             Eigen::VectorXd& twisting_force);
 
-    void updateMinimumDistance();
+    std::tuple<double, Eigen::Vector3d> getMinimumDistance(const Eigen::Vector3d& ri1,
+            const Eigen::Vector3d& ri2,
+            const Eigen::Vector3d& rj1,
+            const Eigen::Vector3d& rj2);
 
-    double applyCollision();
+    void computeDisplacements();
+
+    double applyCollision(Eigen::VectorXd& gradient);
 
 protected:
 
