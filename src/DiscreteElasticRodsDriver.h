@@ -134,7 +134,7 @@ public:
             Eigen::Vector3d ri1(0.,0.,0.), ri2(1.,0.,0.), rj1(0.,1.,1.), rj2(1.,1.,1.);
             std::tie(mdij, nij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0))<1e-6);
-            is_passed = is_passed && ((nij-Eigen::Vector3d(0.,1.,0.)).norm()<1e-6);
+            is_passed = is_passed && ((nij-Eigen::Vector3d(0.,1.,1.)).norm()<1e-6);
             // std::cout << mdij << std::endl; // debug
             // test case 2
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
