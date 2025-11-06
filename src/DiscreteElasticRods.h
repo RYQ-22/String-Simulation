@@ -54,6 +54,7 @@ public:
     double weight = 0.;
     Eigen::SparseMatrix<double> md;
     Eigen::SparseMatrix<double> n;
+    Eigen::SparseMatrix<double> w;
 
     DiscreteElasticRods();
 
@@ -118,7 +119,8 @@ public:
             Eigen::VectorXd& bending_force,
             Eigen::VectorXd& twisting_force);
 
-    std::tuple<double, Eigen::Vector3d> getMinimumDistance(const Eigen::Vector3d& ri1,
+    std::tuple<double, Eigen::Vector3d, Eigen::Vector2d> getMinimumDistance(
+            const Eigen::Vector3d& ri1,
             const Eigen::Vector3d& ri2,
             const Eigen::Vector3d& rj1,
             const Eigen::Vector3d& rj2);

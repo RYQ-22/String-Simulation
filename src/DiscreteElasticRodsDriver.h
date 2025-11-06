@@ -129,38 +129,39 @@ public:
             std::cout << "case 2: testing segments' minimum distance" << std::endl;
             bool is_passed = true;
             double mdij;
+            Eigen::Vector2d wij;
             Eigen::Vector3d nij;
             // test case 1
             Eigen::Vector3d ri1(0.,0.,0.), ri2(1.,0.,0.), rj1(0.,1.,1.), rj2(1.,1.,1.);
-            std::tie(mdij, nij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
+            std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0))<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,1.,1.)).norm()<1e-6);
             // std::cout << mdij << std::endl; // debug
             // test case 2
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(2.,1.,0.), rj2 = Eigen::Vector3d(3.,1.,0.);
-            std::tie(mdij, nij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
+            std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0))<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(1.,1.,0.)).norm()<1e-6);
             // std::cout << mdij << std::endl; // debug
             // test case 3
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(.5,-.5,0.), rj2 = Eigen::Vector3d(.5,.5,0.);
-            std::tie(mdij, nij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
+            std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-0.)<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,0.,0.)).norm()<1e-6);
             // std::cout << mdij << std::endl; // debug
             // test case 4
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(.5,.5,0.), rj2 = Eigen::Vector3d(3.,3.,0.);
-            std::tie(mdij, nij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
+            std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-.5)<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,.5,0.)).norm()<1e-6);
             // std::cout << mdij << std::endl; // debug
             // test case 5
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(.5,-.5,0.), rj2 = Eigen::Vector3d(.5,.5,1.);
-            std::tie(mdij, nij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
+            std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0)*.25)<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,-.25,.25)).norm()<1e-6);
             // std::cout << mdij << std::endl; // debug
@@ -169,22 +170,111 @@ public:
             else std::cout << "test failed" << std::endl;
             exit(0);
         }
-        case 3:std::cout << "case 3: collision testing 1" << std::endl;
-            nv = 20;
+        case 3:
+        {
+            std::cout << "case 3: testing constraint" << std::endl;
+            const double d = 0.6;
+            double mdij;
+            Eigen::Vector2d wij;
+            Eigen::Vector3d nij;
+            Eigen::Vector3d ri1(0.,0.,0.), ri2(1.,0.,0.), rj1(.5,.5,0.), rj2(.5,.5,1.);
+            Eigen:: Vector3d dri1, dri2, drj1, drj2;
+            std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
+            std::cout << "i = 0, mdij: " << mdij << std::endl;
+            // std::cout << "wij: " << wij(0) << ", " << wij(1) << std::endl;
+            for (int i = 0; i < 20; i++) {
+                dri1 = nij*(mdij-d)*wij(0)*.5;
+                dri2 = nij*(mdij-d)*(1.-wij(0))*.5;
+                drj1 = nij*(d-mdij)*wij(1)*.5;
+                drj2 = nij*(d-mdij)*(1.-wij(1))*.5;
+                ri1 += dri1;
+                ri2 += dri2;
+                rj1 += drj1;
+                rj2 += drj2;
+                std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
+                std::cout << "i = " << i+1 <<", mdij: " << mdij << std::endl;
+                // std::cout << "wij: " << wij(0) << ", " << wij(1) << std::endl;
+            }
+            exit(0);
+        }
+        case 4:std::cout << "case 4: collision testing 1" << std::endl;
+            nv = 4;
             x_.resize(nv*3);
             x_.setZero();
             theta.resize(nv-1);
             theta.setZero();
 
+            x_(0) = 0.;
+            x_(3) = 1.;
             for (int i = 0; i<nv/2; i++) {
-                x_(3*i) = (-((nv/2) >> 1)+i);
                 is_fixed.emplace_back(true);
             }
 
+            x_(6) = 0.5, x_(7) = 0.8, x_(8) = 0.;
+            x_(9) = 0.5, x_(10) = 0.8, x_(11) = 1.;
             for (int i = nv/2; i<nv; i++) {
-                x_(3*i) = 0.;
-                x_(3*i+1) = 1.;
-                x_(3*i+2) = (-((nv/2) >> 1)+i-nv/2);
+                is_fixed.emplace_back(false);
+            }
+
+            for (int i = 0; i<nv-1; i++) {
+                is_connected.emplace_back(true);
+            }
+
+            is_connected[nv/2-1] = false;
+
+            params.stretching_energy_enabled = true;
+            params.bending_energy_enabled = false;
+            params.twisting_energy_enabled = false;
+            params.gravity_enabled = true;
+            params.collision_enabled = true;
+            break;
+        case 5:std::cout << "case 5: collision testing 2" << std::endl;
+            nv = 4;
+            x_.resize(nv*3);
+            x_.setZero();
+            theta.resize(nv-1);
+            theta.setZero();
+
+            x_(0) = 0.;
+            x_(3) = 1.;
+            for (int i = 0; i<nv/2; i++) {
+                is_fixed.emplace_back(true);
+            }
+
+            x_(6) = 0.5, x_(7) = 0.8, x_(8) = -.5;
+            x_(9) = 0.5, x_(10) = 0.8, x_(11) = .5;
+            for (int i = nv/2; i<nv; i++) {
+                is_fixed.emplace_back(false);
+            }
+
+            for (int i = 0; i<nv-1; i++) {
+                is_connected.emplace_back(true);
+            }
+
+            is_connected[nv/2-1] = false;
+
+            params.stretching_energy_enabled = true;
+            params.bending_energy_enabled = false;
+            params.twisting_energy_enabled = false;
+            params.gravity_enabled = true;
+            params.collision_enabled = true;
+            break;
+        case 6:std::cout << "case 6: collision testing 3" << std::endl;
+            nv = 4;
+            x_.resize(nv*3);
+            x_.setZero();
+            theta.resize(nv-1);
+            theta.setZero();
+
+            x_(0) = 0.;
+            x_(3) = 1.;
+            for (int i = 0; i<nv/2; i++) {
+                is_fixed.emplace_back(true);
+            }
+
+            x_(6) = 0., x_(7) = 0.8, x_(8) = .1;
+            x_(9) = 1., x_(10) = 0.8, x_(11) = -.1;
+            for (int i = nv/2; i<nv; i++) {
                 is_fixed.emplace_back(false);
             }
 

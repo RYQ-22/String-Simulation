@@ -478,7 +478,8 @@ void DiscreteElasticRods::buildForceVisualization(Eigen::VectorXd& stretching_fo
     }
 }
 
-std::tuple<double, Eigen::Vector3d> DiscreteElasticRods::getMinimumDistance(const Eigen::Vector3d& ri1,
+std::tuple<double, Eigen::Vector3d, Eigen::Vector2d> DiscreteElasticRods::getMinimumDistance(
+        const Eigen::Vector3d& ri1,
         const Eigen::Vector3d& ri2,
         const Eigen::Vector3d& rj1,
         const Eigen::Vector3d& rj2)
@@ -487,61 +488,174 @@ std::tuple<double, Eigen::Vector3d> DiscreteElasticRods::getMinimumDistance(cons
     double delta;
     double ti, tj;
     double mdij;
-    Eigen::Vector3d nij, nij1, nij2;
+    Eigen::Vector2d wij, wij1, wij2, wij3;
+    Eigen::Vector3d nij, nij1, nij2, nij3;
     Eigen::Vector3d rk1, rk2;
-    Eigen::Vector3d ei, ej, w;
-    Eigen::Vector3d rm1, rm2;
+    Eigen::Vector3d ei, ej, w1, w2, w3;
+    Eigen::Vector3d rim1, rim2, rkm1, rkm2;
     Eigen::Vector3d h;
 
     ei = ri2-ri1;
     ej = rj2-rj1;
-    w = rj1-ri1;
+    w1 = rj1-ri1;
     a1 = ei.norm()*ei.norm();
     a2 = ei.dot(ej);
-    a3 = w.dot(ei);
+    a3 = w1.dot(ei);
     a4 = ej.norm()*ej.norm();
-    a5 = -w.dot(ej);
+    a5 = -w1.dot(ej);
     delta = a1*a4-a2*a2;
-    if (delta != 0.) {
+    h.setZero();
+    if (delta!=0.) {
         ti = (a3*a4+a2*a5)/delta;
         tj = (a1*a5+a2*a3)/delta;
-        h = w+tj*ej-ti*ei;
-    }
-    else {
-        h.setZero();
+        h = w1+tj*ej-ti*ei;
     }
     rk1 = rj1-h;
     rk2 = rj2-h;
+    w2 = rk2-ri2;
+    w3 = ei.cross(ej);
 
-    rm1 = ri1+(rk1-ri1).dot(ei)/a1*ei;
-    rm2 = ri1+(rk2-ri1).dot(ei)/a1*ei;
-    nij1 = rk1-rm1;
-    nij2 = rk2-rm2;
-    if ((ei.cross(rk1-ri1)).dot(ei.cross(rk2-ri1))<=0) {
-        nij.setZero();
+    rim1 = ri1+(rk1-ri1).dot(ei)/a1*ei;
+    rim2 = ri1+(rk2-ri1).dot(ei)/a1*ei;
+    rkm1 = rk1+(ri1-rk1).dot(ej)/a4*ej;
+    rkm2 = rk1+(ri2-rk1).dot(ej)/a4*ej;
+    double bi1, bi2, bk1, bk2;
+    bi1 = (ri2-rim1).dot(ei)/a1;
+    bi2 = (ri2-rim2).dot(ei)/a1;
+    bk1 = (rk2-rkm1).dot(ej)/a4;
+    bk2 = (rk2-rkm2).dot(ej)/a4;
+    bool is_s2s_collision = false, is_p2s_collision = false, is_s2p_collision = false;
+    bool is_on_segment1, is_on_segment2, is_covered;
+    is_on_segment1 = (ri1-rim1).dot(ri2-rim1)<=0.;
+    is_on_segment2 = (ri1-rim2).dot(ri2-rim2)<=0.;
+    is_covered = (rim1-ri1).dot(ei)<0.&&(rim2-ri2).dot(ei)>0.;
+
+    // segment - segment
+    if (delta!=0.) {
+        wij(0) = (ej.cross(w2)).dot(w3)/(w3).dot(w3);
+        wij(1) = (ei.cross(w2)).dot(w3)/(w3).dot(w3);
+        if (wij(0)>=0.&&wij(0)<=1.&&wij(1)>=0.&&wij(1)<=1.) {
+            is_s2s_collision = true;
+            nij.setZero();
+        }
     }
     else {
-        if ((ri1-rm1).dot(ri2-rm1)>=0.) {
-            nij1 = rk1-ri1;
-            if (nij1.norm()>(rk1-ri2).norm()) {
-                nij1 = rk1-ri2;
+        nij = rk1-rim1;
+        if (is_on_segment1&&is_on_segment2) {
+            is_s2s_collision = true;
+            wij(0) = 0.5*(bi1+bi2);
+            wij(1) = 0.5;
+        }
+        else if (is_on_segment1) {
+            is_s2s_collision = true;
+            if (bi2>1) {
+                wij(0) = 0.5*(bi1+1.);
+                wij(1) = 0.5*(bk1+1.);
+            }
+            else {
+                wij(0) = 0.5*bi1;
+                wij(1) = 0.5*(bk2+1.);
             }
         }
-        if ((ri1-rm2).dot(ri2-rm2)>=0.) {
-            nij2 = rk2-ri1;
-            if (nij2.norm()>(rk2-ri2).norm()) {
-                nij2 = rk2-ri2;
+        else if (is_on_segment2) {
+            is_s2s_collision = true;
+            if (bi1>1) {
+                wij(0) = 0.5*(bi2+1.);
+                wij(1) = 0.5*bk1;
+            }
+            else {
+                wij(0) = 0.5*bi2;
+                wij(1) = 0.5*bk2;
             }
         }
-        nij = nij1;
-        if (nij.norm()>nij2.norm()) {
-            nij = nij2;
+        else if (is_covered) {
+            is_s2s_collision = true;
+            wij(0) = 0.5;
+            wij(1) = 0.5*(bk1+bk2);
         }
     }
+    // point - segment
+    if (!is_s2s_collision) {
+        if (bi1>=0&&bi1<=1&&bi2>=0&&bi2<=1) {
+            is_p2s_collision = true;
+            nij1 = rk1-rim1;
+            nij2 = rk2-rim2;
+            wij1(0) = bi1, wij1(1) = 1.;
+            wij2(0) = bi2, wij2(1) = 0.;
+            nij = nij1, wij = wij1;
+            if (nij2.norm()<nij1.norm()) {
+                nij = nij2;
+                wij = wij2;
+            }
+        }
+        else if (bi1>=0&&bi1<=1) {
+            is_p2s_collision = true;
+            nij = rk1-rim1;
+            wij(0) = bi1, wij(1) = 1.;
+        }
+        else if (bi2>=0&&bi2<=1) {
+            is_p2s_collision = true;
+            nij = rk2-rim2;
+            wij(0) = bi2, wij(1) = 0.;
+        }
+    }
+    // segment - point
+    if (!is_s2s_collision) {
+        if (bk1>=0&&bk1<=1&&bk2>=0&&bk2<=1) {
+            is_s2p_collision = true;
+            nij1 = rkm1-ri1;
+            nij2 = rkm2-ri2;
+            wij1(0) = 1., wij1(1) = bk1;
+            wij2(0) = 0., wij2(1) = bk2;
+            nij3 = nij1, wij3 = wij1;
+            if (nij2.norm()<nij1.norm()) {
+                nij3 = nij2;
+                wij3 = wij2;
+            }
+        }
+        else if (bk1>=0&&bk1<=1) {
+            is_s2p_collision = true;
+            nij3 = rkm1-ri1;
+            wij3(0) = 1., wij3(1) = bk1;
+        }
+        else if (bk2>=0&&bk2<=1) {
+            is_s2p_collision = true;
+            nij3 = rkm2-ri2;
+            wij3(0) = 0., wij3(1) = bk2;
+        }
+        if (!is_p2s_collision||nij3.norm()<nij.norm()) {
+            nij = nij3;
+            wij = wij3;
+        }
+    }
+    // point - point
+    if ((!is_s2s_collision)&&(!is_p2s_collision)&&(!is_s2p_collision)) {
+        nij1 = rk1-ri1;
+        wij1(0) = 1., wij1(1) = 1.;
+        if (nij1.norm()>(rk1-ri2).norm()) {
+            nij1 = rk1-ri2;
+            wij1(0) = 0., wij1(1) = 1.;
+        }
+        nij2 = rk2-ri1;
+        wij2(0) = 1., wij2(1) = 0.;
+        if (nij2.norm()>(rk2-ri2).norm()) {
+            nij2 = rk2-ri2;
+            wij2(0) = 0., wij2(1) = 0.;
+        }
+        nij = nij1;
+        wij = wij1;
+        if (nij.norm()>nij2.norm()) {
+            nij = nij2;
+            wij = wij2;
+        }
+    }
+
+    // std::cout << is_s2s_collision << " " << is_s2p_collision << " " << is_p2s_collision << std::endl;
+
     nij += h;
     mdij = nij.norm();
 
-    return std::make_tuple(mdij,nij);
+    return std::make_tuple(mdij,nij,wij);
 }
 
 void DiscreteElasticRods::computeDisplacements()
@@ -549,11 +663,14 @@ void DiscreteElasticRods::computeDisplacements()
     const double d = 2.*params.segment_radius;
     Eigen::Vector3d ri1, ri2, rj1, rj2;
     double mdij;
+    Eigen::Vector2d wij;
     Eigen::Vector3d nij;
     std::vector<Eigen::Triplet<double>> md_triplets;
     std::vector<Eigen::Triplet<double>> n_triplets;
+    std::vector<Eigen::Triplet<double>> w_triplets;
     md.resize(nv-1,nv-1);
     n.resize(nv-1,3*(nv-1));
+    w.resize(nv-1,2*(nv-1));
     for (int i = 0; i<nv-1; i++) {
         if (!is_connected[i]) continue;
         for (int j = i+2; j<nv-1; j++) {
@@ -562,17 +679,20 @@ void DiscreteElasticRods::computeDisplacements()
             ri2 = x_iter.segment<3>(3*(i+1));
             rj1 = x_iter.segment<3>(3*j);
             rj2 = x_iter.segment<3>(3*(j+1));
-            std::tie(mdij, nij) = getMinimumDistance(ri1, ri2, rj1, rj2);
+            std::tie(mdij, nij, wij) = getMinimumDistance(ri1, ri2, rj1, rj2);
             if (mdij<d) {
                 md_triplets.push_back(Eigen::Triplet<double>(i,j,mdij));
                 n_triplets.push_back(Eigen::Triplet<double>(i,3*j,nij(0)));
                 n_triplets.push_back(Eigen::Triplet<double>(i,3*j+1,nij(1)));
                 n_triplets.push_back(Eigen::Triplet<double>(i,3*j+2,nij(2)));
+                w_triplets.push_back(Eigen::Triplet<double>(i,2*j,wij(0)));
+                w_triplets.push_back(Eigen::Triplet<double>(i,2*j+1,wij(1)));
             }
         }
     } 
     md.setFromTriplets(md_triplets.begin(),md_triplets.end());
     n.setFromTriplets(n_triplets.begin(),n_triplets.end());
+    w.setFromTriplets(w_triplets.begin(),w_triplets.end());
 }
 
 double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
@@ -581,6 +701,7 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
     const double h = params.time_step;
     const int iters = params.collision_max_iters;
     double mdij;
+    Eigen::Vector2d wij;
     Eigen::Vector3d nij;
     x_iter = x;
     x_delta.setZero();
@@ -592,21 +713,27 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
             for (Eigen::SparseMatrix<double>::InnerIterator it(md,k); it; ++it) {
                 const int i = it.row();
                 const int j = it.col();
+                // std::cout << "(i,j): (" << i << "," << j << ")" << std::endl; 
                 mdij = md.coeff(i,j);
                 nij(0) = n.coeff(i,3*j);
                 nij(1) = n.coeff(i,3*j+1);
                 nij(2) = n.coeff(i,3*j+2);
+                wij(0) = w.coeff(i,2*j);
+                wij(1) = w.coeff(i,2*j+1);
+                // std::cout << "nij: " << nij(0) << ", " << nij(1) << ", " << nij(2) << std::endl;
+                // std::cout << "mdij: " << mdij << std::endl;
+                // std::cout << "wij: " << wij(0) << ", " << wij(1) << "\n" << std::endl;
                 // m = 1 for all points
                 weight = 0.5;
-                // TODO: debug
-                x_delta.segment<3>(3*i) += nij*weight*(mdij-d)*0.5;
-                x_delta.segment<3>(3*(i+1)) += nij*weight*(mdij-d)*(1.-0.5);
-                x_delta.segment<3>(3*j) += nij*(1.-weight)*(d-mdij)*0.5;
-                x_delta.segment<3>(3*(j+1)) += nij*(1.-weight)*(d-mdij)*(1.-0.5);
+                x_delta.segment<3>(3*i) += nij*weight*(mdij-d)*wij(0);
+                x_delta.segment<3>(3*(i+1)) += nij*weight*(mdij-d)*(1.-wij(0));
+                x_delta.segment<3>(3*j) += nij*(1.-weight)*(d-mdij)*wij(1);
+                x_delta.segment<3>(3*(j+1)) += nij*(1.-weight)*(d-mdij)*(1.-wij(1));
+
                 x_iter.segment<3>(3*i) = x.segment<3>(3*i) + x_delta.segment<3>(3*i);
-                x_iter.segment<3>(3*(i+1)) = x.segment<3>(3*i) + x_delta.segment<3>(3*(i+1));
-                x_iter.segment<3>(3*j) = x.segment<3>(3*i) + x_delta.segment<3>(3*j);
-                x_iter.segment<3>(3*(j+1)) = x.segment<3>(3*i) + x_delta.segment<3>(3*(j+1));
+                x_iter.segment<3>(3*(i+1)) = x.segment<3>(3*(i+1)) + x_delta.segment<3>(3*(i+1));
+                x_iter.segment<3>(3*j) = x.segment<3>(3*j) + x_delta.segment<3>(3*j);
+                x_iter.segment<3>(3*(j+1)) = x.segment<3>(3*(j+1)) + x_delta.segment<3>(3*(j+1));
             }
         }
     }
@@ -614,7 +741,8 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
     for (int i = 0; i<nv; i++) {
         // m = 1 for all points
         const double m = 1.;
-        gradient.segment<3>(3*i) += x_delta.segment<3>(3*i)*m/(h*h);
+        gradient.segment<3>(3*i) += -x_delta.segment<3>(3*i)*m/(h*h);
+        // std::cout << (x_delta.segment<3>(3*i)*m/(h*h)).norm() << std::endl;
     }
 
     return 0;
