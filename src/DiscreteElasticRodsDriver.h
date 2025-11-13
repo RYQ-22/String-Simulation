@@ -136,6 +136,7 @@ public:
             std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0))<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,1.,1.)).norm()<1e-6);
+            is_passed = is_passed && ((wij-Eigen::Vector2d(0.5,.5)).norm()<1e-6);
             // std::cout << mdij << std::endl; // debug
             // test case 2
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
@@ -223,7 +224,7 @@ public:
             is_connected[nv/2-1] = false;
 
             params.stretching_energy_enabled = true;
-            params.bending_energy_enabled = false;
+            params.bending_energy_enabled = true;
             params.twisting_energy_enabled = false;
             params.gravity_enabled = true;
             params.collision_enabled = true;
@@ -254,7 +255,7 @@ public:
             is_connected[nv/2-1] = false;
 
             params.stretching_energy_enabled = true;
-            params.bending_energy_enabled = false;
+            params.bending_energy_enabled = true;
             params.twisting_energy_enabled = false;
             params.gravity_enabled = true;
             params.collision_enabled = true;
@@ -285,7 +286,39 @@ public:
             is_connected[nv/2-1] = false;
 
             params.stretching_energy_enabled = true;
-            params.bending_energy_enabled = false;
+            params.bending_energy_enabled = true;
+            params.twisting_energy_enabled = false;
+            params.gravity_enabled = true;
+            params.collision_enabled = true;
+            break;
+        case 7:std::cout << "case 7: collision testing 4" << std::endl;
+            nv = 8;
+            x_.resize(nv*3);
+            x_.setZero();
+            theta.resize(nv-1);
+            theta.setZero();
+
+            for (int i = 0; i<nv/2; i++) {
+                x_(3*i) = (-(nv/2 >> 1)+i);
+                is_fixed.emplace_back(true);
+            }
+
+            for (int i = 0, j = 0; i<nv/2; i++) {
+                j = i + nv/2;
+                x_(3*j+0) = x_(3*nv/2);
+                x_(3*j+1) = .5;
+                x_(3*j+2) = (-(nv/2 >> 1)+i);
+                is_fixed.emplace_back(false);
+            }
+
+            for (int i = 0; i<nv-1; i++) {
+                is_connected.emplace_back(true);
+            }
+
+            is_connected[nv/2-1] = false;
+
+            params.stretching_energy_enabled = true;
+            params.bending_energy_enabled = true;
             params.twisting_energy_enabled = false;
             params.gravity_enabled = true;
             params.collision_enabled = true;

@@ -326,7 +326,7 @@ double DiscreteElasticRods::applyBendingForce(Eigen::VectorXd& gradient,
     getMaterialCurvature(kappa);
 
     for (int i = 1; i<nv-1; i++) {
-        if (!is_connected[i]) continue;
+        if (!is_connected[i-1] || !is_connected[i]) continue;
         const double a_i = r;
         const double b_i = r;
         // TODO: fix A_i = pi * a_j * b_j
@@ -408,7 +408,7 @@ double DiscreteElasticRods::applyTwistingForce(Eigen::VectorXd& gradient,
     Eigen::MatrixX2d kappa;
     getMaterialCurvature(kappa);
     for (int i = 1; i<nv-1; i++) {
-        if (!is_connected[i]) continue;
+        if (!is_connected[i-1] || !is_connected[i]) continue;
         const double a_i = r;
         const double b_i = r;
         //TODO: fix A_i = pi * a_j * b_j

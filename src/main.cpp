@@ -63,5 +63,8 @@ int main(int argc, char* argv[])
         std::cerr << "[ERROR] Please Select A Valid Driver.";
     }
     }
+    polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::None;
+    polyscope::options::enableVSync = false;
+    polyscope::options::maxFPS = 120;
     polyscope::show();
 }
