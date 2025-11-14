@@ -25,7 +25,7 @@ struct SimParameters {
 
   SimParameters()
   {
-      time_step = 0.001;
+      time_step = 0.0005;
 
       newton_max_iters = 20;
       newton_tolerance = 1e-8;
@@ -42,7 +42,7 @@ struct SimParameters {
       bending_energy_enabled = true;
       twisting_energy_enabled = true;
 
-      collision_max_iters = 20;
+      collision_max_iters = 5;
       collision_enabled = false;
   }
 };
