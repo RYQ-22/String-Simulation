@@ -323,6 +323,49 @@ public:
             params.gravity_enabled = true;
             params.collision_enabled = true;
             break;
+        case 8:
+        {
+            std::cout << "case 8: collision testing 5" << std::endl;
+            const int N = 2;
+            nv = 10*N;
+            x_.resize(nv*3);
+            x_.setZero();
+            theta.resize(nv-1);
+            theta.setZero();
+
+            double alpha = 2.*M_PI/N;
+            double y,z;
+            for (int j = 0; j<N; j++) {
+                y = 1.5*cos(alpha*j);
+                z = 1.5*sin(alpha*j);
+                for (int i = 0, idx = 0; i<nv/N; i++) {
+                    idx = j*(nv/N)+i;
+                    x_(3*idx) = i;
+                    x_(3*idx+1) = y;
+                    x_(3*idx+2) = z;
+                    is_fixed.emplace_back(false);
+                }
+            }
+
+            for (int i = 0; i<nv-1; i++) {
+                is_connected.emplace_back(true);
+            }
+
+            for (int i = 0; i<N-1; i++) {
+                is_fixed[i*(nv/N)] = true;
+                is_fixed[i*(nv/N)+1] = true;
+                is_connected[(i+1)*(nv/N)-1] = false;
+            }
+            is_fixed[(N-1)*(nv/N)] = true;
+            is_fixed[(N-1)*(nv/N)+1] = true;
+
+            params.stretching_energy_enabled = true;
+            params.bending_energy_enabled = true;
+            params.twisting_energy_enabled = false;
+            params.gravity_enabled = true;
+            params.collision_enabled = false;
+            break;
+        }
         default:std::cout << "invalid test case" << std::endl;
         }
         discrete_elastic_rods.initSimulation(nv, x_, theta, is_fixed, is_connected, params);

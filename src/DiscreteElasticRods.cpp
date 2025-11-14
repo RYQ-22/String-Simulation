@@ -44,7 +44,8 @@ void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::Vec
 
     for (int i = 0, i_vis = 0; i<nv-1; i++) {
         Eigen::Vector3d d3_i = d3.row(i).transpose();
-        d1_ref.row(i) = Eigen::RowVector3d(-d3_i(1), d3_i(0), 0);
+        if (d3_i(2) == 1.) d1_ref.row(i) = Eigen::RowVector3d(1, 0, 0);
+        else d1_ref.row(i) = Eigen::RowVector3d(-d3_i(1), d3_i(0), 0);
         Eigen::Vector3d d1_i = d1_ref.row(i).transpose();
         d2_ref.row(i) = (d1_i.cross(d3_i)).transpose();
         if (is_connected[i]) {
@@ -97,6 +98,7 @@ void DiscreteElasticRods::simulateOneStep()
 void DiscreteElasticRods::updateCenterlinePosition(void)
 {
     const double h = params.time_step;
+    #pragma omp parallel for
     for (int i = 0; i<nv; i++) {
         if (!is_fixed[i]) x.segment<3>(3*i) += h*v.segment<3>(3*i);
     }
@@ -177,6 +179,7 @@ void DiscreteElasticRods::computeGradientAndHessian(Eigen::VectorXd& gradient,
 void DiscreteElasticRods::updateCenterlineVelocity(Eigen::VectorXd& gradient)
 {
     const double h = params.time_step;
+    #pragma omp parallel for
     for (int i = 0; i<nv; i++) {
         // TODO: add mass
         double m = 1;
@@ -188,6 +191,7 @@ void DiscreteElasticRods::updateCenterlineVelocity(Eigen::VectorXd& gradient)
 void DiscreteElasticRods::updateFrameTheta(Eigen::VectorXd& gradient)
 {
     const double h = params.time_step;
+    #pragma omp parallel for
     for (int i = 0; i<nv-1; i++) {
         if (!is_fixed[i] || !is_fixed[i+1]) theta(i) -= h*gradient(3*nv+i);
     }
@@ -195,6 +199,7 @@ void DiscreteElasticRods::updateFrameTheta(Eigen::VectorXd& gradient)
 
 void DiscreteElasticRods::updateEdge()
 {
+    #pragma omp parallel for
     for (int i = 0; i<nv-1; i++) {
         e.segment<3>(3*i) = x.segment<3>(3*(i+1))-x.segment<3>(3*i);
     }
@@ -202,6 +207,7 @@ void DiscreteElasticRods::updateEdge()
 
 void DiscreteElasticRods::updateLength()
 {
+    #pragma omp parallel for
     for (int i = 0; i<nv-1; i++) {
         length(i) = e.segment<3>(3*i).norm();
     }
@@ -209,6 +215,7 @@ void DiscreteElasticRods::updateLength()
 
 void DiscreteElasticRods::updateCurvatureBinormal(Eigen::MatrixX3d d3)
 {
+    #pragma omp parallel for
     for (int i = 0; i<nv-2; i++) {
         Eigen::Vector3d d3_i = d3.row(i).transpose();
         Eigen::Vector3d d3_ip1 = d3.row(i+1).transpose();
@@ -220,6 +227,7 @@ void DiscreteElasticRods::updateCurvatureBinormal(Eigen::MatrixX3d d3)
 Eigen::MatrixX3d DiscreteElasticRods::unitTangents(Eigen::VectorXd& x_)
 {
     Eigen::MatrixX3d unit_tangents(nv-1, 3);
+    #pragma omp parallel for
     for (int i = 0; i<nv-1; i++)
         unit_tangents.row(i) = ((x_.segment<3>(3*(i+1))-x_.segment<3>(3*i)).normalized()).transpose();
     return unit_tangents;
@@ -235,6 +243,7 @@ Eigen::Vector3d DiscreteElasticRods::parallelTransport(Eigen::Vector3d v, Eigen:
 void DiscreteElasticRods::getMaterialCurvature(Eigen::MatrixX2d& kappa)
 {
     kappa.resize(nv-2, 2);
+    #pragma omp parallel for
     for (int i = 0; i<nv-2; i++) {
         Eigen::VectorXd kb_i = kb.row(i).transpose();
         kappa(i, 0) = kb_i.dot((d2.row(i)+d2.row(i+1)).transpose())/2;
@@ -245,6 +254,7 @@ void DiscreteElasticRods::getMaterialCurvature(Eigen::MatrixX2d& kappa)
 Eigen::VectorXd DiscreteElasticRods::getTwist(Eigen::MatrixX3d& d2, Eigen::MatrixX3d& d3)
 {
     Eigen::VectorXd twist(nv-2);
+    #pragma omp parallel for
     for (int i = 1; i<nv-1; i++) {
         Eigen::Vector3d vec1 = parallelTransport(d2.row(i-1).transpose(), d3.row(i-1).transpose(),
                 d3.row(i).transpose());
@@ -259,6 +269,7 @@ Eigen::VectorXd DiscreteElasticRods::getTwist(Eigen::MatrixX3d& d2, Eigen::Matri
 void DiscreteElasticRods::getVoronoiLength(Eigen::VectorXd& l)
 {
     l.resize(nv-2);
+    #pragma omp parallel for
     for (int i = 0; i<nv-2; i++) {
         l(i) = (length_rest(i)+length_rest(i+1))/2;
     }
@@ -285,6 +296,7 @@ double DiscreteElasticRods::applyStretchingForce(Eigen::VectorXd& gradient,
     const double r = params.segment_radius;
     const double k = params.stretching_modulus;
     double E_s = 0.0;
+    #pragma omp parallel for
     for (int i = 0; i<nv-1; i++) {
         if (!is_connected[i]) continue;
         // ======== compute stretching energy E_s ========
@@ -325,11 +337,11 @@ double DiscreteElasticRods::applyBendingForce(Eigen::VectorXd& gradient,
     Eigen::MatrixX2d kappa;
     getMaterialCurvature(kappa);
 
+    #pragma omp parallel for
     for (int i = 1; i<nv-1; i++) {
         if (!is_connected[i-1] || !is_connected[i]) continue;
         const double a_i = r;
         const double b_i = r;
-        // TODO: fix A_i = pi * a_j * b_j
         const double A_i = M_PI*a_i*b_i;
         const double B11 = E*A_i*pow(a_i, 2)/4;
         const double B22 = E*A_i*pow(b_i, 2)/4;
@@ -407,6 +419,7 @@ double DiscreteElasticRods::applyTwistingForce(Eigen::VectorXd& gradient,
     double E_t = 0.0;
     Eigen::MatrixX2d kappa;
     getMaterialCurvature(kappa);
+    #pragma omp parallel for
     for (int i = 1; i<nv-1; i++) {
         if (!is_connected[i-1] || !is_connected[i]) continue;
         const double a_i = r;
@@ -452,6 +465,7 @@ double DiscreteElasticRods::applyTwistingForce(Eigen::VectorXd& gradient,
 double DiscreteElasticRods::applyGravity(Eigen::VectorXd& gradient)
 {
     const double g = params.gravity_G;
+    #pragma omp parallel for
     for (int i = 0; i<nv; i++) {
         // TODO: add mass
         double m = 1;
@@ -462,6 +476,7 @@ double DiscreteElasticRods::applyGravity(Eigen::VectorXd& gradient)
 
 void DiscreteElasticRods::buildVisualization(Eigen::VectorXd& gradient)
 {
+    #pragma omp parallel for
     for (int i = 0; i<nv; i++) {
         vis_gradient[i] = gradient.segment<3>(3*i);
     }
@@ -471,6 +486,7 @@ void DiscreteElasticRods::buildForceVisualization(Eigen::VectorXd& stretching_fo
         Eigen::VectorXd& bending_force,
         Eigen::VectorXd& twisting_force)
 {
+    #pragma omp parallel for
     for (int i = 0; i<nv; i++) {
         vis_stretching_force[i] = stretching_force.segment<3>(3*i);
         vis_bending_force[i] = bending_force.segment<3>(3*i);
@@ -738,6 +754,7 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
         }
     }
 
+    #pragma omp parallel for
     for (int i = 0; i<nv; i++) {
         // m = 1 for all points
         const double m = 1.;

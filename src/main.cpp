@@ -1,5 +1,6 @@
 // std
 #include <iostream>
+#include <omp.h>
 // polyscope
 #include "polyscope/polyscope.h"
 // project
@@ -23,6 +24,7 @@ void discreteElasticRodsDriverCallback()
 
 int main(int argc, char* argv[])
 {
+    omp_set_num_threads(3);
     InputParser input(argc, argv);
     int driver = input.getIntegerCmdOption("-driver");
     int test = input.getIntegerCmdOption("-test");
