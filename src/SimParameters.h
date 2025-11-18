@@ -42,7 +42,7 @@ struct SimParameters {
       bending_energy_enabled = true;
       twisting_energy_enabled = true;
 
-      collision_max_iters = 5;
+      collision_max_iters = 50;
       collision_enabled = false;
   }
 };

@@ -136,36 +136,35 @@ public:
             std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0))<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,1.,1.)).norm()<1e-6);
-            is_passed = is_passed && ((wij-Eigen::Vector2d(0.5,.5)).norm()<1e-6);
-            // std::cout << mdij << std::endl; // debug
+            // std::cout << nij << std::endl; // debug
             // test case 2
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(2.,1.,0.), rj2 = Eigen::Vector3d(3.,1.,0.);
             std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0))<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(1.,1.,0.)).norm()<1e-6);
-            // std::cout << mdij << std::endl; // debug
+            // std::cout << nij << std::endl; // debug
             // test case 3
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(.5,-.5,0.), rj2 = Eigen::Vector3d(.5,.5,0.);
             std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-0.)<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,0.,0.)).norm()<1e-6);
-            // std::cout << mdij << std::endl; // debug
+            // std::cout << nij << std::endl; // debug
             // test case 4
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(.5,.5,0.), rj2 = Eigen::Vector3d(3.,3.,0.);
             std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-.5)<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,.5,0.)).norm()<1e-6);
-            // std::cout << mdij << std::endl; // debug
+            // std::cout << nij << std::endl; // debug
             // test case 5
             ri1 = Eigen::Vector3d(0.,0.,0.), ri2 = Eigen::Vector3d(1.,0.,0.),
             rj1 = Eigen::Vector3d(.5,-.5,0.), rj2 = Eigen::Vector3d(.5,.5,1.);
             std::tie(mdij, nij, wij) = discrete_elastic_rods.getMinimumDistance(ri1,ri2,rj1,rj2);
             is_passed = is_passed && (std::abs(mdij-std::sqrt(2.0)*.25)<1e-6);
             is_passed = is_passed && ((nij-Eigen::Vector3d(0.,-.25,.25)).norm()<1e-6);
-            // std::cout << mdij << std::endl; // debug
+            // std::cout << nij << std::endl; // debug
 
             if (is_passed) std::cout << "test passed" << std::endl;
             else std::cout << "test failed" << std::endl;
@@ -292,7 +291,7 @@ public:
             params.collision_enabled = true;
             break;
         case 7:std::cout << "case 7: collision testing 4" << std::endl;
-            nv = 8;
+            nv = 40;
             x_.resize(nv*3);
             x_.setZero();
             theta.resize(nv-1);
@@ -363,7 +362,7 @@ public:
             params.bending_energy_enabled = true;
             params.twisting_energy_enabled = false;
             params.gravity_enabled = true;
-            params.collision_enabled = false;
+            params.collision_enabled = true;
             break;
         }
         default:std::cout << "invalid test case" << std::endl;

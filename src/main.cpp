@@ -24,7 +24,7 @@ void discreteElasticRodsDriverCallback()
 
 int main(int argc, char* argv[])
 {
-    omp_set_num_threads(3);
+    omp_set_num_threads(4);
     InputParser input(argc, argv);
     int driver = input.getIntegerCmdOption("-driver");
     int test = input.getIntegerCmdOption("-test");
@@ -67,6 +67,6 @@ int main(int argc, char* argv[])
     }
     polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::None;
     polyscope::options::enableVSync = false;
-    polyscope::options::maxFPS = 120;
+    polyscope::options::maxFPS = 1000;
     polyscope::show();
 }
