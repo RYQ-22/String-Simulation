@@ -24,7 +24,7 @@ void discreteElasticRodsDriverCallback()
 
 int main(int argc, char* argv[])
 {
-    omp_set_num_threads(4);
+    omp_set_num_threads(1);
     InputParser input(argc, argv);
     int driver = input.getIntegerCmdOption("-driver");
     int test = input.getIntegerCmdOption("-test");

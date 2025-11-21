@@ -19,6 +19,7 @@ public:
     std::vector<bool> is_fixed;
     std::vector<bool> is_connected;
     std::vector<int> rod_id;
+    std::vector<bool> is_collision;
     Eigen::VectorXd v;
     Eigen::VectorXd e;
     Eigen::VectorXd length_rest;

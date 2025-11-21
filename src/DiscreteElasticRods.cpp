@@ -12,6 +12,7 @@ void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::Vec
     is_fixed = std::move(is_fixed_);
     is_connected = std::move(is_connected_);
     rod_id = std::move(rod_id_);
+    is_collision.resize((nv-1)*3);
     x_iter.resize(nv*3);
     x_delta.resize(nv*3);
     v.resize(nv*3);
@@ -642,6 +643,7 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
     Eigen::Vector3d nij;
     x_iter = x;
     x_delta.setZero();
+    is_collision.assign(is_collision.size(), false);
 
     // solve x_delta iteratively
     double err = -1.;
@@ -660,6 +662,8 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
                 wij(0) = w.coeff(i,2*j);
                 wij(1) = w.coeff(i,2*j+1);
                 err = std::max(err,std::max(d-mdij,0.));
+                is_collision[i] = true;
+                is_collision[j] = true;
                 // std::cout << "nij: " << nij(0) << ", " << nij(1) << ", " << nij(2) << std::endl;
                 // std::cout << "mdij: " << mdij << std::endl;
                 // std::cout << "wij: " << wij(0) << ", " << wij(1) << "\n" << std::endl;

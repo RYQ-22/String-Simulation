@@ -17,6 +17,7 @@ public:
     polyscope::CurveNetwork* mesh = nullptr;
     std::vector<Eigen::Vector3d> vis_nodes;
     std::vector<std::array<size_t, 2>> vis_edges;
+    std::vector<Eigen::Vector3d> vis_colors;
 
     // status
     bool running = false;
@@ -34,17 +35,28 @@ public:
             std::array<size_t, 2> edge{i-1, i};
             vis_edges.push_back(edge);
         }
+        for (int i =0; i<nv-1; i++) {
+            if (!is_connected[i]) continue;
+            Eigen::Vector3d color(.53,.80,.92);
+            vis_colors.push_back(color);
+        }
     }
 
-    void updateVisualization(int nv, Eigen::VectorXd x_)
+    void updateVisualization(int nv, Eigen::VectorXd x_, std::vector<bool> is_connected, std::vector<bool> is_collision)
     {
         for (int i = 0; i<nv; i++) {
             Eigen::Vector3d node(x_(3*i), x_(3*i+1), x_(3*i+2));
             vis_nodes[i] = node;
         }
+        for (int i = 0; i<nv-1; i++) {
+            if (!is_connected[i]) continue;
+            if (is_collision[i]) vis_colors[i] = Eigen::Vector3d(.5, 0., 0.);
+            else vis_colors[i] = Eigen::Vector3d(.53,.80,.92);
+        }
         // update curve network
         mesh->updateNodePositions(vis_nodes);
         mesh->removeAllQuantities();
+        mesh->addEdgeColorQuantity("Edge Color", vis_colors);
         mesh->addNodeVectorQuantity("Twisting Force", discrete_elastic_rods.vis_twisting_force);
         mesh->addNodeVectorQuantity("Bending Force", discrete_elastic_rods.vis_bending_force);
         mesh->addNodeVectorQuantity("Stretching Force", discrete_elastic_rods.vis_stretching_force);
@@ -53,6 +65,7 @@ public:
         mesh->addEdgeVectorQuantity("d2", discrete_elastic_rods.d2_vis);
         mesh->getQuantity("d1")->setEnabled(true);
         mesh->getQuantity("d2")->setEnabled(true);
+        mesh->getQuantity("Edge Color")->setEnabled(true);
 //        Eigen::MatrixX3d node_kb;
 //        node_kb.resize(discrete_elastic_rods.nv, 3);
 //        node_kb.setZero();
@@ -384,7 +397,7 @@ public:
         initVisualization(nv, x_, is_connected);
         // init curve network
         mesh = polyscope::registerCurveNetwork("Discrete Elastic Rods", vis_nodes, vis_edges);
-        updateVisualization(discrete_elastic_rods.nv, discrete_elastic_rods.x);
+        updateVisualization(discrete_elastic_rods.nv, discrete_elastic_rods.x, discrete_elastic_rods.is_connected, discrete_elastic_rods.is_collision);
     }
 
     void simulateOneStep()
@@ -394,7 +407,7 @@ public:
             //std::cout << "======== step " << inner << " ========" << std::endl;
             discrete_elastic_rods.simulateOneStep();
         }
-        updateVisualization(discrete_elastic_rods.nv, discrete_elastic_rods.x);
+        updateVisualization(discrete_elastic_rods.nv, discrete_elastic_rods.x, discrete_elastic_rods.is_connected, discrete_elastic_rods.is_collision);
     }
 };
 
