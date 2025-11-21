@@ -18,6 +18,7 @@ public:
     Eigen::VectorXd x_delta;
     std::vector<bool> is_fixed;
     std::vector<bool> is_connected;
+    std::vector<int> rod_id;
     Eigen::VectorXd v;
     Eigen::VectorXd e;
     Eigen::VectorXd length_rest;
@@ -59,7 +60,7 @@ public:
     DiscreteElasticRods();
 
     void initSimulation(int nv_, Eigen::VectorXd x_, Eigen::VectorXd theta_, std::vector<bool> is_fixed_,
-            std::vector<bool> is_connected_, SimParameters params_);
+            std::vector<bool> is_connected_, std::vector<int> rod_id_, SimParameters params_);
 
     void simulateOneStep();
 
@@ -128,6 +129,8 @@ public:
     void computeDisplacements();
 
     double applyCollision(Eigen::VectorXd& gradient);
+
+    double applyDraggingForce(Eigen::VectorXd& gradient);
 
 protected:
 

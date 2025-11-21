@@ -23,9 +23,11 @@ struct SimParameters {
   int collision_max_iters;
   bool collision_enabled;
 
+  bool dragging_enabled;
+
   SimParameters()
   {
-      time_step = 0.0005;
+      time_step = 5e-4;
 
       newton_max_iters = 20;
       newton_tolerance = 1e-8;
@@ -34,9 +36,9 @@ struct SimParameters {
       gravity_G = -9.8;
 
       stretching_modulus = 1e4;
-      bending_modulus = 1e7;
+      bending_modulus = 1.2e7;
       twisting_modulus = 1e5;
-      segment_radius = 0.1;
+      segment_radius = 0.12;
 
       stretching_energy_enabled = true;
       bending_energy_enabled = true;
@@ -44,6 +46,8 @@ struct SimParameters {
 
       collision_max_iters = 50;
       collision_enabled = false;
+
+      dragging_enabled = true;
   }
 };
 

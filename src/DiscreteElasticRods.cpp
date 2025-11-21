@@ -5,12 +5,13 @@
 DiscreteElasticRods::DiscreteElasticRods() { }
 
 void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::VectorXd theta_,
-        std::vector<bool> is_fixed_, std::vector<bool> is_connected_, SimParameters params_)
+        std::vector<bool> is_fixed_, std::vector<bool> is_connected_, std::vector<int> rod_id_, SimParameters params_)
 {
     nv = nv_;
     x = std::move(x_);
     is_fixed = std::move(is_fixed_);
     is_connected = std::move(is_connected_);
+    rod_id = std::move(rod_id_);
     x_iter.resize(nv*3);
     x_delta.resize(nv*3);
     v.resize(nv*3);
@@ -171,6 +172,11 @@ void DiscreteElasticRods::computeGradientAndHessian(Eigen::VectorXd& gradient,
         applyCollision(gradient);
     }
 
+    if (params.dragging_enabled) {
+        if (verbose) std::cout << "    - Applying Dragging" << std::endl;
+        applyDraggingForce(gradient);
+    }
+
     hessian.setFromTriplets(hessian_triplets.begin(), hessian_triplets.end());
 
     buildForceVisualization(stretching_force, bending_force, twisting_force);
@@ -296,7 +302,7 @@ double DiscreteElasticRods::applyStretchingForce(Eigen::VectorXd& gradient,
     const double r = params.segment_radius;
     const double k = params.stretching_modulus;
     double E_s = 0.0;
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 0; i<nv-1; i++) {
         if (!is_connected[i]) continue;
         // ======== compute stretching energy E_s ========
@@ -337,7 +343,7 @@ double DiscreteElasticRods::applyBendingForce(Eigen::VectorXd& gradient,
     Eigen::MatrixX2d kappa;
     getMaterialCurvature(kappa);
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 1; i<nv-1; i++) {
         if (!is_connected[i-1] || !is_connected[i]) continue;
         const double a_i = r;
@@ -419,7 +425,7 @@ double DiscreteElasticRods::applyTwistingForce(Eigen::VectorXd& gradient,
     double E_t = 0.0;
     Eigen::MatrixX2d kappa;
     getMaterialCurvature(kappa);
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 1; i<nv-1; i++) {
         if (!is_connected[i-1] || !is_connected[i]) continue;
         const double a_i = r;
@@ -605,6 +611,7 @@ void DiscreteElasticRods::computeDisplacements()
         if (!is_connected[i]) continue;
         for (int j = i+2; j<nv-1; j++) {
             if (!is_connected[j]) continue;
+            if (rod_id[i] == rod_id[j]) continue;
             ri1 = x_iter.segment<3>(3*i);
             ri2 = x_iter.segment<3>(3*(i+1));
             rj1 = x_iter.segment<3>(3*j);
@@ -675,8 +682,19 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
     for (int i = 0; i<nv; i++) {
         // m = 1 for all points
         const double m = 1.;
-        gradient.segment<3>(3*i) += -x_delta.segment<3>(3*i)*m/(h*h);
+        gradient.segment<3>(3*i) -= x_delta.segment<3>(3*i)*m/(h*h);
         // std::cout << (x_delta.segment<3>(3*i)*m/(h*h)).norm() << std::endl;
+    }
+
+    return 0;
+}
+
+double DiscreteElasticRods::applyDraggingForce(Eigen::VectorXd& gradient)
+{
+    #pragma omp parallel for
+    for (int i = 0; i<nv; i++) {
+        double m = 1;
+        gradient.segment<3>(3*i) -= -m*0.05*v.segment<3>(3*i);
     }
 
     return 0;

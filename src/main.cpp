@@ -49,6 +49,7 @@ int main(int argc, char* argv[])
     }
 
     // driver setup
+    polyscope::view::setWindowSize(1920,1080);
     polyscope::init();
     switch (driver) {
     case 0: {

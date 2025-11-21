@@ -67,6 +67,7 @@ public:
         Eigen::VectorXd x_;
         std::vector<bool> is_fixed;
         std::vector<bool> is_connected;
+        std::vector<int> rod_id;
         SimParameters params;
         Eigen::VectorXd theta;
 
@@ -81,6 +82,7 @@ public:
             for (int i = 0; i<nv; i++) {
                 x_(3*i) = (-(nv >> 1)+i);
                 is_fixed.emplace_back(false);
+                rod_id.emplace_back(0);
             }
 
             for (int i = 0; i<nv-1; i++) {
@@ -95,6 +97,7 @@ public:
             params.bending_energy_enabled = true;
             params.twisting_energy_enabled = false;
             params.gravity_enabled = true;
+            params.collision_enabled = false;
             break;
         case 1:std::cout << "case 1: testing twisting energy" << std::endl;
             nv = 10;
@@ -106,6 +109,7 @@ public:
             for (int i = 0; i<nv; i++) {
                 x_(3*i) = (-(nv >> 1)+i);
                 is_fixed.emplace_back(false);
+                rod_id.emplace_back(0);
             }
 
             for (int i = 0; i<nv-1; i++) {
@@ -208,12 +212,14 @@ public:
             x_(3) = 1.;
             for (int i = 0; i<nv/2; i++) {
                 is_fixed.emplace_back(true);
+                rod_id.emplace_back(0);
             }
 
             x_(6) = 0.5, x_(7) = 0.8, x_(8) = 0.;
             x_(9) = 0.5, x_(10) = 0.8, x_(11) = 1.;
             for (int i = nv/2; i<nv; i++) {
                 is_fixed.emplace_back(false);
+                rod_id.emplace_back(1);
             }
 
             for (int i = 0; i<nv-1; i++) {
@@ -239,12 +245,14 @@ public:
             x_(3) = 1.;
             for (int i = 0; i<nv/2; i++) {
                 is_fixed.emplace_back(true);
+                rod_id.emplace_back(0);
             }
 
             x_(6) = 0.5, x_(7) = 0.8, x_(8) = -.5;
             x_(9) = 0.5, x_(10) = 0.8, x_(11) = .5;
             for (int i = nv/2; i<nv; i++) {
                 is_fixed.emplace_back(false);
+                rod_id.emplace_back(1);
             }
 
             for (int i = 0; i<nv-1; i++) {
@@ -270,12 +278,14 @@ public:
             x_(3) = 1.;
             for (int i = 0; i<nv/2; i++) {
                 is_fixed.emplace_back(true);
+                rod_id.emplace_back(0);
             }
 
             x_(6) = 0., x_(7) = 0.8, x_(8) = .1;
             x_(9) = 1., x_(10) = 0.8, x_(11) = -.1;
             for (int i = nv/2; i<nv; i++) {
                 is_fixed.emplace_back(false);
+                rod_id.emplace_back(1);
             }
 
             for (int i = 0; i<nv-1; i++) {
@@ -300,6 +310,7 @@ public:
             for (int i = 0; i<nv/2; i++) {
                 x_(3*i) = (-(nv/2 >> 1)+i);
                 is_fixed.emplace_back(true);
+                rod_id.emplace_back(0);
             }
 
             for (int i = 0, j = 0; i<nv/2; i++) {
@@ -308,6 +319,7 @@ public:
                 x_(3*j+1) = .5;
                 x_(3*j+2) = (-(nv/2 >> 1)+i);
                 is_fixed.emplace_back(false);
+                rod_id.emplace_back(1);
             }
 
             for (int i = 0; i<nv-1; i++) {
@@ -326,7 +338,7 @@ public:
         {
             std::cout << "case 8: collision testing 5" << std::endl;
             const int N = 2;
-            nv = 10*N;
+            nv = 20*N;
             x_.resize(nv*3);
             x_.setZero();
             theta.resize(nv-1);
@@ -343,6 +355,7 @@ public:
                     x_(3*idx+1) = y;
                     x_(3*idx+2) = z;
                     is_fixed.emplace_back(false);
+                    rod_id.emplace_back(j);
                 }
             }
 
@@ -367,7 +380,7 @@ public:
         }
         default:std::cout << "invalid test case" << std::endl;
         }
-        discrete_elastic_rods.initSimulation(nv, x_, theta, is_fixed, is_connected, params);
+        discrete_elastic_rods.initSimulation(nv, x_, theta, is_fixed, is_connected, rod_id, params);
         initVisualization(nv, x_, is_connected);
         // init curve network
         mesh = polyscope::registerCurveNetwork("Discrete Elastic Rods", vis_nodes, vis_edges);
