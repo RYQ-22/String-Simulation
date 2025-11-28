@@ -24,6 +24,10 @@ struct SimParameters {
   bool collision_enabled;
 
   bool dragging_enabled;
+  float water_velocity;
+  double volume_fraction;
+  double d_parallel, d_perp;
+
 
   SimParameters()
   {
@@ -48,6 +52,7 @@ struct SimParameters {
       collision_enabled = false;
 
       dragging_enabled = true;
+      water_velocity = 10.0f;
   }
 };
 

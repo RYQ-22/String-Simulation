@@ -696,9 +696,12 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
 double DiscreteElasticRods::applyDraggingForce(Eigen::VectorXd& gradient)
 {
     #pragma omp parallel for
-    for (int i = 0; i<nv; i++) {
+    for (int i = nv/2; i<nv; i++) {
         double m = 1;
-        gradient.segment<3>(3*i) -= -m*0.05*v.segment<3>(3*i);
+        is_collision[i] = true;
+        Eigen::Vector3d dv = v.segment<3>(3*i) - Eigen::Vector3d(-params.water_velocity, 0., 0.);
+        gradient.segment<3>(3*i) -= -m*0.01*dv;
+        gradient.segment<3>(3*i) -= -m*0.05*dv.norm()*dv;
     }
 
     return 0;

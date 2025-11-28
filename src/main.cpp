@@ -15,6 +15,7 @@ void discreteElasticRodsDriverCallback()
     ImGui::Text("Stretching Energy = %f", discrete_elastic_rods_driver.discrete_elastic_rods.stretching_energy);
     ImGui::Text("Bending Energy = %f", discrete_elastic_rods_driver.discrete_elastic_rods.bending_energy);
     ImGui::Text("Twisting Energy = %f", discrete_elastic_rods_driver.discrete_elastic_rods.twisting_energy);
+    ImGui::SliderFloat("Water Velocity", &discrete_elastic_rods_driver.discrete_elastic_rods.params.water_velocity, -15.0f, 15.0f);
     if (ImGui::Button("Run/Stop Simulation"))
         discrete_elastic_rods_driver.running = !discrete_elastic_rods_driver.running;
     ImGui::SameLine();

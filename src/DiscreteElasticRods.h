@@ -58,6 +58,11 @@ public:
     Eigen::SparseMatrix<double> n;
     Eigen::SparseMatrix<double> w;
 
+    // dragging
+    double angle = 0.;
+    Eigen::Matrix3d A_angle;
+    Eigen::Matrix3d B_angle;
+
     DiscreteElasticRods();
 
     void initSimulation(int nv_, Eigen::VectorXd x_, Eigen::VectorXd theta_, std::vector<bool> is_fixed_,

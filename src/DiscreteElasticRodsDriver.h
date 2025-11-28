@@ -86,7 +86,7 @@ public:
 
         switch (test) {
         case 0:std::cout << "case 0: testing stretching and bending energy" << std::endl;
-            nv = 10;
+            nv = 20;
             x_.resize(nv*3);
             x_.setZero();
             theta.resize(nv-1);
@@ -351,7 +351,7 @@ public:
         {
             std::cout << "case 8: collision testing 5" << std::endl;
             const int N = 2;
-            nv = 20*N;
+            nv = 15*N;
             x_.resize(nv*3);
             x_.setZero();
             theta.resize(nv-1);
@@ -360,11 +360,11 @@ public:
             double alpha = 2.*M_PI/N;
             double y,z;
             for (int j = 0; j<N; j++) {
-                y = 1.5*cos(alpha*j);
-                z = 1.5*sin(alpha*j);
+                y = 1.*cos(alpha*j);
+                z = 1.*sin(alpha*j);
                 for (int i = 0, idx = 0; i<nv/N; i++) {
                     idx = j*(nv/N)+i;
-                    x_(3*idx) = i;
+                    x_(3*idx) = i+j*1.;
                     x_(3*idx+1) = y;
                     x_(3*idx+2) = z;
                     is_fixed.emplace_back(false);
@@ -383,6 +383,37 @@ public:
             }
             is_fixed[(N-1)*(nv/N)] = true;
             is_fixed[(N-1)*(nv/N)+1] = true;
+
+            params.stretching_energy_enabled = true;
+            params.bending_energy_enabled = true;
+            params.twisting_energy_enabled = false;
+            params.gravity_enabled = true;
+            params.collision_enabled = true;
+            break;
+        }
+        case 9:
+        {
+            std::cout << "case 9: dragging force test" << std::endl;
+            nv = 15;
+            x_.resize(nv*3);
+            x_.setZero();
+            theta.resize(nv-1);
+            theta.setZero();
+
+            for (int i = 0; i<nv; i++) {
+                x_(3*i) = 0.;
+                x_(3*i+1) = -i;
+                x_(3*i+2) = 0.;
+                is_fixed.emplace_back(false);
+                rod_id.emplace_back(0);
+            }
+
+            for (int i = 0; i<nv-1; i++) {
+                is_connected.emplace_back(true);
+            }
+
+            is_fixed[0] = true;
+            is_fixed[1] = true;
 
             params.stretching_energy_enabled = true;
             params.bending_energy_enabled = true;
