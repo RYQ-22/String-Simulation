@@ -13,6 +13,7 @@
 
 class DiscreteElasticRods {
 public:
+    double t = 0.;
     Eigen::VectorXd x;
     Eigen::VectorXd x_iter;
     Eigen::VectorXd x_delta;
@@ -27,6 +28,7 @@ public:
     Eigen::VectorXd length;
     Eigen::MatrixX3d kb;
     Eigen::MatrixX2d kappa_ref;
+    Eigen::MatrixX2d kappa_rest;
     Eigen::VectorXd twist_rest;
     int nv;
 
@@ -51,6 +53,7 @@ public:
     std::vector<Eigen::Vector3d> vis_stretching_force;
     std::vector<Eigen::Vector3d> vis_bending_force;
     std::vector<Eigen::Vector3d> vis_twisting_force;
+    std::vector<Eigen::Vector3d> vis_actuation_force;
 
     // collision
     double weight = 0.;
@@ -62,6 +65,13 @@ public:
     double angle = 0.;
     Eigen::Matrix3d A_angle;
     Eigen::Matrix3d B_angle;
+
+    // control
+    Eigen::VectorXd u; // muscle_excitation, in [-1, 1]
+    Eigen::VectorXd u_new;
+    Eigen::Vector3d actuation_force;
+    double total_impulse = 0.;
+    double muscle_axis_angle = 0.;
 
     DiscreteElasticRods();
 
@@ -137,6 +147,12 @@ public:
     double applyCollision(Eigen::VectorXd& gradient);
 
     double applyDraggingForce(Eigen::VectorXd& gradient);
+
+    double computeCPGSignal();
+
+    void updateExcitation();
+
+    void updateRestShape();
 
 protected:
 

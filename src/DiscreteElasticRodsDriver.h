@@ -7,6 +7,7 @@
 // project
 #include "DiscreteElasticRods.h"
 #include "SimParameters.h"
+#include "SimGeometry.h"
 
 class DiscreteElasticRodsDriver {
 public:
@@ -18,6 +19,7 @@ public:
     std::vector<Eigen::Vector3d> vis_nodes;
     std::vector<std::array<size_t, 2>> vis_edges;
     std::vector<Eigen::Vector3d> vis_colors;
+    OctopusHead octopus_head = OctopusHead("Octopus Head", 0.5, 15, 30);
 
     // status
     bool running = false;
@@ -63,9 +65,13 @@ public:
         mesh->addNodeVectorQuantity("Gradient", discrete_elastic_rods.vis_gradient);
         mesh->addEdgeVectorQuantity("d1", discrete_elastic_rods.d1_vis);
         mesh->addEdgeVectorQuantity("d2", discrete_elastic_rods.d2_vis);
+        auto vec_qty = mesh->addNodeVectorQuantity("Actuation Force", discrete_elastic_rods.vis_actuation_force);
         mesh->getQuantity("d1")->setEnabled(true);
         mesh->getQuantity("d2")->setEnabled(true);
+        mesh->getQuantity("Actuation Force")->setEnabled(true);
         mesh->getQuantity("Edge Color")->setEnabled(true);
+        vec_qty->setVectorLengthScale(3.);
+        vec_qty->setVectorRadius(0.01);
 //        Eigen::MatrixX3d node_kb;
 //        node_kb.resize(discrete_elastic_rods.nv, 3);
 //        node_kb.setZero();
@@ -350,7 +356,7 @@ public:
         case 8:
         {
             std::cout << "case 8: collision testing 5" << std::endl;
-            const int N = 2;
+            const int N = 10;
             nv = 15*N;
             x_.resize(nv*3);
             x_.setZero();
@@ -364,7 +370,7 @@ public:
                 z = 1.*sin(alpha*j);
                 for (int i = 0, idx = 0; i<nv/N; i++) {
                     idx = j*(nv/N)+i;
-                    x_(3*idx) = i+j*1.;
+                    x_(3*idx) = i+j*.2;
                     x_(3*idx+1) = y;
                     x_(3*idx+2) = z;
                     is_fixed.emplace_back(false);
@@ -422,12 +428,89 @@ public:
             params.collision_enabled = true;
             break;
         }
+        case 10:
+        {
+            std::cout << "case 10: control test" << std::endl;
+            nv = 30;
+            x_.resize(nv*3);
+            x_.setZero();
+            theta.resize(nv-1);
+            theta.setZero();
+
+            for (int i = 0; i<nv; i++) {
+                x_(3*i) = 0.;
+                x_(3*i+1) = -i;
+                x_(3*i+2) = 0.;
+                is_fixed.emplace_back(false);
+                rod_id.emplace_back(0);
+            }
+
+            for (int i = 0; i<nv-1; i++) {
+                is_connected.emplace_back(true);
+            }
+
+            is_fixed[0] = true;
+            is_fixed[1] = true;
+
+            params.stretching_energy_enabled = true;
+            params.bending_energy_enabled = true;
+            params.twisting_energy_enabled = false;
+            params.gravity_enabled = false;
+            params.collision_enabled = true;
+            params.control_enabled = true;
+            break;
+        }
+        case 11:
+        {
+            std::cout << "case11: control test 2" << std::endl;
+            const int N = 5;
+            nv = 30*N;
+            x_.resize(nv*3);
+            x_.setZero();
+            theta.resize(nv-1);
+            theta.setZero();
+
+            double alpha = 2.*M_PI/N;
+            double x,z;
+            for (int j = 0; j<N; j++) {
+                x = 5.*cos(alpha*j);
+                z = 5.*sin(alpha*j);
+                for (int i = 0, idx = 0; i<nv/N; i++) {
+                    idx = j*(nv/N)+i;
+                    x_(3*idx) = x;
+                    x_(3*idx+1) = -i;
+                    x_(3*idx+2) = z;
+                    is_fixed.emplace_back(false);
+                    rod_id.emplace_back(j);
+                }
+            }
+
+            for (int i = 0; i<nv-1; i++) {
+                is_connected.emplace_back(true);
+            }
+
+            for (int i = 0; i<N-1; i++) {
+                is_fixed[i*(nv/N)] = true;
+                is_fixed[i*(nv/N)+1] = true;
+                is_connected[(i+1)*(nv/N)-1] = false;
+            }
+            is_fixed[(N-1)*(nv/N)] = true;
+            is_fixed[(N-1)*(nv/N)+1] = true;
+
+            params.stretching_energy_enabled = true;
+            params.bending_energy_enabled = true;
+            params.twisting_energy_enabled = false;
+            params.gravity_enabled = false;
+            params.collision_enabled = false;
+            break;
+        }
         default:std::cout << "invalid test case" << std::endl;
         }
         discrete_elastic_rods.initSimulation(nv, x_, theta, is_fixed, is_connected, rod_id, params);
         initVisualization(nv, x_, is_connected);
         // init curve network
         mesh = polyscope::registerCurveNetwork("Discrete Elastic Rods", vis_nodes, vis_edges);
+        // octopus_head.registerMesh();
         updateVisualization(discrete_elastic_rods.nv, discrete_elastic_rods.x, discrete_elastic_rods.is_connected, discrete_elastic_rods.is_collision);
     }
 

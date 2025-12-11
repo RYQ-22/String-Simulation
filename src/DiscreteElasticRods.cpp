@@ -27,6 +27,12 @@ void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::Vec
     updateEdge();
     updateLength();
 
+    u.resize(nv-2);
+    u.setZero();
+    u_new.resize(nv-2);
+    u_new.setZero();
+    actuation_force.setZero();
+
     int ne_vis = 0;
 
     for (int i = 0; i<nv-1; i++) {
@@ -63,7 +69,8 @@ void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::Vec
 
     kb.resize(nv-2, 3);
     updateCurvatureBinormal(d3);
-    getMaterialCurvature(kappa_ref);
+    getMaterialCurvature(kappa_rest);
+    kappa_ref = kappa_rest;
     twist_rest.resize(nv-2);
     twist_rest.setZero();
     getVoronoiLength(l_ref);
@@ -74,10 +81,12 @@ void DiscreteElasticRods::initSimulation(int nv_, Eigen::VectorXd x_, Eigen::Vec
     vis_stretching_force.resize(nv);
     vis_bending_force.resize(nv);
     vis_twisting_force.resize(nv);
+    vis_actuation_force.resize(nv);
 }
 
 void DiscreteElasticRods::simulateOneStep()
 {
+    const double h = params.time_step;
     Eigen::MatrixX3d prev_d3 = unitTangents(x);
     updateCenterlinePosition();
     Eigen::MatrixX3d d3 = unitTangents(x);
@@ -95,6 +104,7 @@ void DiscreteElasticRods::simulateOneStep()
     updateCenterlineVelocity(gradient);
     updateFrameTheta(gradient);
     buildVisualization(gradient);
+    t += h;
 }
 
 void DiscreteElasticRods::updateCenterlinePosition(void)
@@ -147,6 +157,12 @@ void DiscreteElasticRods::computeGradientAndHessian(Eigen::VectorXd& gradient,
     std::tie(gradient, hessian) = createZeroGradientAndHessian();
     std::vector<Eigen::Triplet<double>>
     hessian_triplets;
+
+    if (params.control_enabled) {
+        if (verbose) std::cout << "    - Adding Control" << std::endl;
+        updateExcitation();
+        updateRestShape();
+    }
 
     if (params.stretching_energy_enabled) {
         if (verbose) std::cout << "    - Computing Stretching Energy" << std::endl;
@@ -499,6 +515,7 @@ void DiscreteElasticRods::buildForceVisualization(Eigen::VectorXd& stretching_fo
         vis_bending_force[i] = bending_force.segment<3>(3*i);
         vis_twisting_force[i] = twisting_force.segment<3>(3*i);
     }
+    vis_actuation_force[0] = actuation_force;
 }
 
 std::tuple<double, Eigen::Vector3d, Eigen::Vector2d> DiscreteElasticRods::getMinimumDistance(
@@ -674,10 +691,10 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
                 x_delta.segment<3>(3*j) += nij*(1.-weight)*(d-mdij)*wij(1);
                 x_delta.segment<3>(3*(j+1)) += nij*(1.-weight)*(d-mdij)*(1.-wij(1));
 
-                x_iter.segment<3>(3*i) = x.segment<3>(3*i) + x_delta.segment<3>(3*i);
-                x_iter.segment<3>(3*(i+1)) = x.segment<3>(3*(i+1)) + x_delta.segment<3>(3*(i+1));
-                x_iter.segment<3>(3*j) = x.segment<3>(3*j) + x_delta.segment<3>(3*j);
-                x_iter.segment<3>(3*(j+1)) = x.segment<3>(3*(j+1)) + x_delta.segment<3>(3*(j+1));
+                x_iter.segment<3>(3*i) = x.segment<3>(3*i)+x_delta.segment<3>(3*i);
+                x_iter.segment<3>(3*(i+1)) = x.segment<3>(3*(i+1))+x_delta.segment<3>(3*(i+1));
+                x_iter.segment<3>(3*j) = x.segment<3>(3*j)+x_delta.segment<3>(3*j);
+                x_iter.segment<3>(3*(j+1)) = x.segment<3>(3*(j+1))+x_delta.segment<3>(3*(j+1));
             }
         }
     }
@@ -695,14 +712,61 @@ double DiscreteElasticRods::applyCollision(Eigen::VectorXd& gradient)
 
 double DiscreteElasticRods::applyDraggingForce(Eigen::VectorXd& gradient)
 {
-    #pragma omp parallel for
-    for (int i = nv/2; i<nv; i++) {
+    const double h = params.time_step;
+    actuation_force.setZero();
+    for (int i = 0; i<nv; i++) {
         double m = 1;
-        is_collision[i] = true;
-        Eigen::Vector3d dv = v.segment<3>(3*i) - Eigen::Vector3d(-params.water_velocity, 0., 0.);
+        // is_collision[i] = true;
+        Eigen::Vector3d dv = v.segment<3>(3*i)-Eigen::Vector3d(-params.water_velocity, 0., 0.);
         gradient.segment<3>(3*i) -= -m*0.01*dv;
         gradient.segment<3>(3*i) -= -m*0.05*dv.norm()*dv;
+        actuation_force += -m*0.01*dv-m*0.05*dv.norm()*dv;
     }
+    total_impulse += actuation_force(1) * h;
 
     return 0;
+}
+
+double DiscreteElasticRods::computeCPGSignal()
+{
+    const NerveParameters& p = params.nerve_params;
+    double t_local = std::fmod(t, p.theta3);
+    
+    // theta1 - theta3
+    if (t_local > p.theta1) {
+        return 0.;
+    }
+
+    // triangular wave
+    return p.theta2*(1.-(std::abs(2.*t_local/p.theta1-1.)));
+}
+
+void DiscreteElasticRods::updateExcitation()
+{
+    const NerveParameters& p = params.nerve_params;
+    // compute current CPG signal
+    double mu = computeCPGSignal();
+
+    // adaptive propagation
+    u_new = u;
+    for (int k = 0; k < p.kappa; k++) {
+        u_new[0] = mu;
+        for (int i = 1; i < nv-2; i++) {
+            u_new[i] = p.alpha*u[i-1]+p.beta*u[i];
+        }
+        u = u_new;
+    }
+}
+
+void DiscreteElasticRods::updateRestShape()
+{
+    const double muscle_max_angle = params.muscle_max_angle;
+    double muscle_angle;
+    double kappa_norm;
+    for (int i = 0; i<nv-2; i++) {
+        muscle_angle = u(i)*muscle_max_angle;
+        kappa_norm = 2.*std::tan(muscle_angle*.5);
+        kappa_ref(i, 0) = kappa_rest(i, 0)+kappa_norm*std::cos(muscle_axis_angle);
+        kappa_ref(i, 1) = kappa_rest(i, 1)+kappa_norm*std::sin(muscle_axis_angle);
+    }
 }

@@ -15,7 +15,11 @@ void discreteElasticRodsDriverCallback()
     ImGui::Text("Stretching Energy = %f", discrete_elastic_rods_driver.discrete_elastic_rods.stretching_energy);
     ImGui::Text("Bending Energy = %f", discrete_elastic_rods_driver.discrete_elastic_rods.bending_energy);
     ImGui::Text("Twisting Energy = %f", discrete_elastic_rods_driver.discrete_elastic_rods.twisting_energy);
+    ImGui::Text("Total Impules = %f", discrete_elastic_rods_driver.discrete_elastic_rods.total_impulse);
     ImGui::SliderFloat("Water Velocity", &discrete_elastic_rods_driver.discrete_elastic_rods.params.water_velocity, -15.0f, 15.0f);
+    ImGui::SliderFloat("theta1", &discrete_elastic_rods_driver.discrete_elastic_rods.params.nerve_params.theta1, 1.0f, 4.0f);
+    ImGui::SliderFloat("theta2", &discrete_elastic_rods_driver.discrete_elastic_rods.params.nerve_params.theta2, -1.0f, 1.0f);
+    ImGui::SliderFloat("theta3", &discrete_elastic_rods_driver.discrete_elastic_rods.params.nerve_params.theta3, 4.0f, 10.0f);
     if (ImGui::Button("Run/Stop Simulation"))
         discrete_elastic_rods_driver.running = !discrete_elastic_rods_driver.running;
     ImGui::SameLine();
